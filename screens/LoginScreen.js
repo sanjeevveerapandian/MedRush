@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
-import auth from "../services/firebaseAuth";
+import { auth } from "../services/firebaseAuth";
 import { LinearGradient } from "expo-linear-gradient"; // For gradient background
 import { MaterialIcons } from "@expo/vector-icons"; // For password visibility icon
 

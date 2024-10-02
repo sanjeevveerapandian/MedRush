@@ -8,22 +8,23 @@ import {
   StyleSheet,
 } from "react-native";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { LinearGradient } from "expo-linear-gradient"; // Gradient background
-import { MaterialIcons } from "@expo/vector-icons"; // Icon for password visibility
-import auth from "../services/firebaseAuth";
+import { auth } from "../services/firebaseAuth"; // Ensure you're importing the 'auth' instance from your service
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialIcons } from "@expo/vector-icons";
 
 export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [hidePassword, setHidePassword] = useState(true); // Password visibility
+  const [hidePassword, setHidePassword] = useState(true);
 
   const handleRegister = () => {
-    setError("");
+    setError(""); // Clear any previous errors
     createUserWithEmailAndPassword(auth, email, password)
       .then((userCredential) => {
         const user = userCredential.user;
-        navigation.navigate("Dashboard");
+        console.log("User registered:", user);
+        navigation.navigate("Dashboard"); // Navigate to Dashboard after registration
       })
       .catch((error) => {
         setError(error.message);
@@ -49,6 +50,7 @@ export default function RegisterScreen({ navigation }) {
           placeholder="Enter your email id"
           style={styles.textInput}
           placeholderTextColor="#fff"
+          value={email}
         />
 
         {/* Password Input */}
@@ -59,6 +61,7 @@ export default function RegisterScreen({ navigation }) {
             secureTextEntry={hidePassword}
             style={[styles.textInput, { flex: 1 }]}
             placeholderTextColor="#fff"
+            value={password}
           />
           <TouchableOpacity onPress={togglePasswordVisibility}>
             <MaterialIcons

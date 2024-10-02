@@ -7,15 +7,17 @@ import {
   Modal,
   FlatList,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
+import { LinearGradient } from "expo-linear-gradient"; // Importing LinearGradient
+import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete"; // Importing Places Autocomplete
 
 const hospitalOptions = ["Government Hospitals", "Private Hospitals"];
 
-export default function DashboardScreen() {
+export default function DashboardScreen({ navigation }) {
   const [region, setRegion] = useState({
     latitude: 13.0827,
     longitude: 80.2707,
@@ -26,12 +28,9 @@ export default function DashboardScreen() {
   const [selectedHospital, setSelectedHospital] = useState(
     "Select Hospital Type"
   );
-  const [locationPermission, setLocationPermission] = useState(false);
-  const [places, setPlaces] = useState([]); // State to hold nearby places
+  const [loading, setLoading] = useState(false);
 
-  const GOOGLE_MAPS_API_KEY = "AIzaSyDGnitSNb0QQ1VyRV7fdBJeCbI-owV28ko"; // Replace with your actual Google Maps API key
-
-  // Function to get location
+  // Function to get the user's location
   const getLocation = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") {
@@ -41,7 +40,6 @@ export default function DashboardScreen() {
       );
       return;
     }
-    setLocationPermission(true);
     const location = await Location.getCurrentPositionAsync({});
     setRegion({
       latitude: location.coords.latitude,
@@ -51,57 +49,101 @@ export default function DashboardScreen() {
     });
   };
 
-  const handleSearch = (data, details = null) => {
-    // Extract the location from the place details
-    const { lat, lng } = details.geometry.location;
-    // Update map region to the selected place
-    setRegion({
-      latitude: lat,
-      longitude: lng,
-      latitudeDelta: 0.0922,
-      longitudeDelta: 0.0421,
-    });
-    // Fetch places nearby using Places API
-    fetchNearbyPlaces(lat, lng);
-  };
+  const confirmLocation = async () => {
+    if (selectedHospital === "Select Hospital Type") {
+      Alert.alert("Error", "Please select a hospital type.");
+      return;
+    }
 
-  // Function to fetch nearby places based on search location
-  const fetchNearbyPlaces = async (lat, lng) => {
-    const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=1500&type=hospital&key=${GOOGLE_MAPS_API_KEY}`;
-
+    setLoading(true);
     try {
-      const response = await fetch(url);
-      const result = await response.json();
-      setPlaces(result.results); // Update places state with nearby hospitals
+      fetch(
+        "https://medrush-e34ac-default-rtdb.asia-southeast1.firebasedatabase.app/posts.json",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: "Location Data",
+            body: `Latitude: ${region.latitude}, Longitude: ${region.longitude}`,
+            hospitalType: selectedHospital,
+            userId: 1,
+          }),
+        }
+      )
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then((json) => {
+          console.log("Data sent to Firebase:", json);
+          Alert.alert(
+            "Success",
+            "Location data sent to Firebase successfully."
+          );
+          // Navigate to the Booking screen
+          navigation.navigate("Booking");
+        })
+        .catch((error) => {
+          console.error("Error sending data to Firebase:", error);
+          Alert.alert("Error", "Failed to send data to Firebase.");
+        });
     } catch (error) {
-      console.error("Error fetching nearby places:", error);
+      console.error("Error sending data: ", error);
+      Alert.alert("Error", "An unexpected error occurred.");
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    getLocation(); // Get user's location when component mounts
+    getLocation();
   }, []);
 
   return (
-    <View style={styles.container}>
+    <LinearGradient colors={["#ff9a9e", "#fad0c4"]} style={styles.container}>
+      {/* MedRush Logo */}
       <View style={styles.header}>
         <Text style={styles.title}>MEDRUSH</Text>
       </View>
 
-      {/* Google Places Autocomplete Search */}
+      {/* Google Places Autocomplete */}
       <GooglePlacesAutocomplete
-        placeholder="Search for nearby hospitals"
-        minLength={2}
-        returnKeyType={"search"}
-        fetchDetails={true}
-        onPress={handleSearch}
+        placeholder="Search for a location"
+        fetchDetails={true} // This enables detailed search results
+        onPress={(data, details = null) => {
+          // 'details' is provided when fetchDetails = true
+          const { lat, lng } = details.geometry.location;
+          setRegion({
+            latitude: lat,
+            longitude: lng,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          });
+        }}
         query={{
-          key: GOOGLE_MAPS_API_KEY,
-          language: "en",
-          types: "hospital", // You can specify the type of places to search for
+          key: "AIzaSyDbGjgmXj-yRCDJJKK4_LI8dMuWF8G806k", // Replace with your Google Maps API Key
+          language: "en", // Set the language for the results
         }}
         styles={{
-          textInput: styles.searchInput,
+          container: { flex: 0 },
+          textInputContainer: {
+            flexDirection: "row",
+            alignItems: "center",
+            margin: 15,
+            backgroundColor: "#fff",
+            paddingHorizontal: 15,
+            borderRadius: 20,
+            elevation: 5,
+          },
+          textInput: {
+            flex: 1,
+            paddingVertical: 10,
+            color: "#333",
+          },
         }}
       />
 
@@ -150,65 +192,72 @@ export default function DashboardScreen() {
         </View>
       </Modal>
 
+      {/* GPS Location Button */}
+      <View style={styles.gpsContainer}>
+        <TouchableOpacity onPress={getLocation} style={styles.gpsButton}>
+          <MaterialIcons name="my-location" size={30} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
       {/* Google Maps View */}
       <MapView
         style={styles.map}
         region={region}
         onRegionChangeComplete={setRegion}
       >
-        {/* User's current location marker */}
         <Marker
           coordinate={{
             latitude: region.latitude,
             longitude: region.longitude,
           }}
         />
-
-        {/* Markers for nearby places */}
-        {places.map((place, index) => (
-          <Marker
-            key={index}
-            coordinate={{
-              latitude: place.geometry.location.lat,
-              longitude: place.geometry.location.lng,
-            }}
-            title={place.name}
-          />
-        ))}
       </MapView>
+
+      {/* Confirm Location Button */}
+      <View style={styles.confirmContainer}>
+        <TouchableOpacity
+          onPress={confirmLocation}
+          style={styles.confirmButton}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.confirmButtonText}>Confirm Location</Text>
+          )}
+        </TouchableOpacity>
+      </View>
 
       {/* Bottom Navigation Placeholder */}
       <View style={styles.bottomNav}>
-        <MaterialIcons name="home" size={30} color="#000" />
-        <MaterialIcons name="person" size={30} color="#000" />
-        <MaterialIcons name="chat" size={30} color="#000" />
+        <MaterialIcons name="home" size={30} color="#ff6347" />
+        <MaterialIcons name="person" size={30} color="#ff6347" />
+        <MaterialIcons name="chat" size={30} color="#ff6347" />
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
+// Enhanced Styles for DashboardScreen
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f0c2b2",
   },
   header: {
     backgroundColor: "#f77f82",
     padding: 20,
     alignItems: "center",
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    elevation: 4,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "bold",
-    color: "#000",
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 10,
-    color: "#000",
-    backgroundColor: "#e0e0e0",
-    borderRadius: 20,
-    marginHorizontal: 10,
+    color: "#fff",
+    textShadowColor: "#333",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 5,
   },
   hospitalContainer: {
     flexDirection: "row",
@@ -218,14 +267,15 @@ const styles = StyleSheet.create({
   hospitalButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#e0e0e0",
+    backgroundColor: "#ff6347",
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderRadius: 20,
+    elevation: 3,
   },
   hospitalText: {
     marginRight: 5,
-    color: "#000",
+    color: "#fff",
     fontSize: 16,
   },
   modalContainer: {
@@ -240,6 +290,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 20,
     alignItems: "center",
+    elevation: 5,
   },
   hospitalItem: {
     padding: 15,
@@ -249,6 +300,7 @@ const styles = StyleSheet.create({
   },
   hospitalItemText: {
     fontSize: 18,
+    color: "#333",
   },
   closeButton: {
     marginTop: 10,
@@ -260,14 +312,51 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
   },
+  gpsContainer: {
+    alignItems: "flex-end",
+    margin: 10,
+  },
+  gpsButton: {
+    backgroundColor: "#ff6347",
+    borderRadius: 50,
+    padding: 10,
+    elevation: 5,
+  },
   map: {
     flex: 1,
     width: "100%",
+    borderRadius: 20,
+    marginVertical: 10,
+    elevation: 4,
+    overflow: "hidden", // Ensures the rounded corners apply to the MapView
+  },
+  confirmContainer: {
+    padding: 15,
+    alignItems: "center",
+    backgroundColor: "#f77f82",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    elevation: 3,
+  },
+  confirmButton: {
+    backgroundColor: "#ff6347",
+    padding: 12,
+    paddingHorizontal: 25,
+    borderRadius: 25,
+    elevation: 4,
+  },
+  confirmButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
   },
   bottomNav: {
     flexDirection: "row",
     justifyContent: "space-around",
     paddingVertical: 10,
     backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    elevation: 4,
   },
 });
